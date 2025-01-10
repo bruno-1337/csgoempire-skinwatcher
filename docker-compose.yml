@@ -2,10 +2,15 @@ version: '3.8'
 
 services:
   skinwatcher:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: docker.io/skinwatcher_skinwatcher:latest
     container_name: skinwatcher
     volumes:
-      - ./config:/app/config
+      - type: bind
+        source: ./config
+        target: /app/config
     env_file:
       - ./.env
-    restart: unless-stopped 
+    restart: unless-stopped

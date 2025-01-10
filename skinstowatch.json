@@ -1,21 +1,20 @@
 {
-  "interval": 10000,
+  "interval": 4000,
   "skins": [
     {
       "name": "Karambit Crimson Web",
       "search": "Karambit Crimson Web",
       "minFloat": 0.15,
-      "maxFloat": 0.24,
-      "minPrice": 800,
-      "maxPrice": 1000
+      "maxFloat": 0.22,
+      "maxPrice": 920
     },
     {
       "name": "AK-47 Vulcan",
       "search": "AK-47 Vulcan",
       "minFloat": 0.15,
-      "maxFloat": 0.22,
+      "maxFloat": 0.21,
       "minPrice": 300,
-      "maxPrice": 700
+      "maxPrice": 450
     }
   ]
 } 

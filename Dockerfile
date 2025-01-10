@@ -1,24 +1,14 @@
-FROM oven/bun:1.0 as builder
+FROM docker.io/oven/bun:1.0
 
 WORKDIR /app
 
-# Copy only package files first
-COPY package.json bun.lockb ./
+# Copy everything
+COPY . .
 
 # Install dependencies
 RUN bun install
 
-# Copy source code
-COPY src/ ./src/
-COPY tsconfig.json ./
+# Create config directory
+RUN mkdir -p /app/config
 
-# Build the application (if needed in the future)
-# RUN bun build ./src/index.ts --outdir ./dist
-
-FROM oven/bun:1.0
-
-WORKDIR /app
-
-COPY . .
-
-CMD ["bun", "run", "start", "config/skinstowatch.json"] 
+CMD ["bun", "run", "start", "config/skinstowatch.json"]
