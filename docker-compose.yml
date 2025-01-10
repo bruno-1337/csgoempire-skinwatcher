@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  skinwatcher:
+    build: .
+    container_name: skinwatcher
+    volumes:
+      - ./config:/app/config
+    env_file:
+      - ./.env
+    restart: unless-stopped 
