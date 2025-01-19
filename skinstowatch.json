@@ -2,8 +2,9 @@
   "interval": 5000,
   "skins": [
     {
-      "search": "Karambit Tiger Tooth",
-      "maxPrice": 19753
+      "search": "Stattrak USP Printstream",
+      "maxFloat": 0.22,
+      "maxPrice": 60.81
     }
   ]
-}
+} 
