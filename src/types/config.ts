@@ -1,5 +1,4 @@
 export interface SkinWatch {
-  name: string;
   search: string;
   minFloat?: number;
   maxFloat?: number;

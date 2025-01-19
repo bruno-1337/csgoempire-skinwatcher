@@ -1,20 +1,9 @@
 {
-  "interval": 4000,
+  "interval": 5000,
   "skins": [
     {
-      "name": "Karambit Crimson Web",
-      "search": "Karambit Crimson Web",
-      "minFloat": 0.15,
-      "maxFloat": 0.22,
-      "maxPrice": 920
-    },
-    {
-      "name": "AK-47 Vulcan",
-      "search": "AK-47 Vulcan",
-      "minFloat": 0.15,
-      "maxFloat": 0.21,
-      "minPrice": 300,
-      "maxPrice": 450
+      "search": "Karambit Tiger Tooth",
+      "maxPrice": 19753
     }
   ]
-} 
+}

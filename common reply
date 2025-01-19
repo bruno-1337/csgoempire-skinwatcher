@@ -1,0 +1,103 @@
+curl -X GET "https://csgoempire.com/api/v2/trading/items?per_page=10&page=1&sort=desc&order=market_value&search=Karambit%20Tiger%20Tooth&price_max=199753" \                                                (base) 0 (0.804s) < 12:29:53
+        -H "Authorization: Bearer API_KEY_HERE" \
+        -H "Content-Type: application/json
+
+{
+  "success": true,
+  "current_page": 1,
+  "data": [
+    {
+      "auction_ends_at": null,
+      "auction_highest_bid": null,
+      "auction_highest_bidder": null,
+      "auction_number_of_bids": 0,
+      "blue_percentage": null,
+      "fade_percentage": null,
+      "icon_url": "-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpovbSsLQJf2PLacDBA5ciJlY60g_7zNqnumXlQ5sJ0teXI8oThxg2yrUJvZWqicYLBe1c_ZgnY-Vi6w7jvhcS1vJyfnXJluCkk5X7bnR2pwUYb2myqBHU",
+      "is_commodity": false,
+      "market_name": "★ Karambit | Tiger Tooth (Factory New)",
+      "market_value": 197685,
+      "name_color": "8650AC",
+      "preview_id": "c3ad8cadae67",
+      "price_is_unreliable": false,
+      "stickers": [],
+      "suggested_price": 194613,
+      "wear": 0.055,
+      "published_at": "2025-01-19T14:08:13.936857Z",
+      "id": 286662373,
+      "depositor_stats": {
+        "delivery_rate_recent": 1,
+        "delivery_rate_long": 1,
+        "delivery_time_minutes_recent": 282,
+        "delivery_time_minutes_long": 148,
+        "steam_level_min_range": 5,
+        "steam_level_max_range": 10,
+        "user_has_trade_notifications_enabled": true,
+        "user_online_status": 0
+      },
+      "above_recommended_price": "1.67",
+      "purchase_price": 197685,
+      "wear_name": "Factory New"
+    },
+    {
+      "auction_ends_at": 1737301510,
+      "auction_highest_bid": null,
+      "auction_highest_bidder": null,
+      "auction_number_of_bids": 0,
+      "blue_percentage": null,
+      "fade_percentage": null,
+      "icon_url": "-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpovbSsLQJf2PLacDBA5ciJlY60g_7zNqnumXlQ5sJ0teXI8oThxg2yrUJvZWqicYLBe1c_ZgnY-Vi6w7jvhcS1vJyfnXJluCkk5X7bnR2pwUYb2myqBHU",
+      "is_commodity": false,
+      "market_name": "★ Karambit | Tiger Tooth (Factory New)",
+      "market_value": 192776,
+      "name_color": "8650AC",
+      "preview_id": "291614eca0ce",
+      "price_is_unreliable": false,
+      "stickers": [],
+      "suggested_price": 194613,
+      "wear": 0.028,
+      "published_at": "2025-01-19T15:46:25.724606Z",
+      "id": 287105452,
+      "depositor_stats": {
+        "delivery_rate_recent": 1,
+        "delivery_rate_long": 0.9864864864864864,
+        "delivery_time_minutes_recent": 9,
+        "delivery_time_minutes_long": 17,
+        "steam_level_min_range": 21,
+        "steam_level_max_range": 40,
+        "user_has_trade_notifications_enabled": false,
+        "user_online_status": 1
+      },
+      "above_recommended_price": "-1.00",
+      "purchase_price": 192776,
+      "wear_name": "Factory New"
+    }
+  ],
+  "first_page_url": "http://csgoempire.com/api/trading/items?per_page=10&sort=desc&order=market_value&search=Karambit%20Tiger%20Tooth&price_max=199753&page=1",
+  "from": 1,
+  "last_page": 1,
+  "last_page_url": "http://csgoempire.com/api/trading/items?per_page=10&sort=desc&order=market_value&search=Karambit%20Tiger%20Tooth&price_max=199753&page=1",
+  "links": [
+    {
+      "url": null,
+      "label": "&laquo; Previous",
+      "active": false
+    },
+    {
+      "url": "http://csgoempire.com/api/trading/items?per_page=10&sort=desc&order=market_value&search=Karambit%20Tiger%20Tooth&price_max=199753&page=1",
+      "label": "1",
+      "active": true
+    },
+    {
+      "url": null,
+      "label": "Next &raquo;",
+      "active": false
+    }
+  ],
+  "next_page_url": null,
+  "path": "http://csgoempire.com/api/trading/items",
+  "per_page": 10,
+  "prev_page_url": null,
+  "to": 2,
+  "total": 2
+}

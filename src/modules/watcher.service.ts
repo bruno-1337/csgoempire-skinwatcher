@@ -8,6 +8,8 @@ import { processSkinConfig } from '../utils/config';
 
 export class WatcherService extends BaseService {
   private spottedItems: Set<number> = new Set();
+  private webhookMessages: Map<number, string> = new Map(); // item.id -> message_id
+  private itemStates: Map<number, CSGOItem> = new Map(); // item.id -> previous state
   private config: WatcherConfig;
   private readonly PRICE_MULTIPLIER = 0.6142808;
 
@@ -66,38 +68,27 @@ export class WatcherService extends BaseService {
 
       debug.log(`${items.length} items match float range criteria`);
 
-      // Convert prices back to USD for display
       for (const item of items) {
-        item.market_value = item.market_value * this.PRICE_MULTIPLIER;
-      }
-
-      for (const item of items) {
-        if (this.spottedItems.has(item.id)) {
-          debug.log(`Item ${item.id} already spotted before`);
-          console.log(chalk.yellow(`
-╔════════════════════════════════════════════
-║ Already spotted this ${skinConfig.name} before
-║ ${this.formatItemDetails(item)}
-╚════════════════════════════════════════════
-`));
+        const isSpotted = this.spottedItems.has(item.id);
+        if (isSpotted) {
+          const previousState = this.itemStates.get(item.id);
+          const changes = previousState ? this.getItemChanges(previousState, item) : [];
+          
+          if (changes.length > 0) {
+            debug.log(`Changes detected for item ${item.id}:`, changes);
+            this.itemStates.set(item.id, {...item}); // Update stored state
+            await this.notifyDiscord(item, skinConfig, changes);
+          }
           continue;
         }
 
         debug.log(`New item found: ${item.market_name}`);
         this.spottedItems.add(item.id);
-        console.log(chalk.green(`
-╔════════════════════════════════════════════
-║ New ${skinConfig.name} Found!
-║ ${this.formatItemDetails(item)}
-║ URL: https://csgoempire.com/item/${item.id}
-╚════════════════════════════════════════════
-`));
-        
-        debug.log('Sending Discord notification...');
+        this.itemStates.set(item.id, {...item}); // Store initial state
         await this.notifyDiscord(item, skinConfig);
       }
     } catch (error) {
-      console.error(chalk.red('Error searching for skin:', skinConfig.name));
+      console.error(chalk.red('Error searching for skin:', skinConfig.search));
       debug.log('Full error:', error);
       return;
     }
@@ -125,50 +116,118 @@ export class WatcherService extends BaseService {
     return details.join('\n║ ');
   }
 
-  private async notifyDiscord(item: CSGOItem, skinConfig: SkinWatch) {
+  private getPriceDifferenceText(priceDiff: string | number): string {
+    const percentage = Number(priceDiff);
+    if (percentage === 0) return "Normal Price 💠";
+    if (percentage <= -5) return "Very Cheap! 🔥";
+    if (percentage <= -3) return "Cheap! 💰";
+    if (percentage < 0) return "Cheaper 📉";
+    if (percentage >= 10) return "Very Expensive! ⚠️";
+    if (percentage >= 5) return "Expensive! ⚡";
+    return "More Expensive 📈";
+  }
+
+  private getItemChanges(oldItem: CSGOItem, newItem: CSGOItem): string[] {
+    const changes: string[] = [];
+    
+    if (oldItem.market_value !== newItem.market_value) {
+      changes.push(`Price changed from $${(oldItem.market_value / 100).toFixed(2)} to $${(newItem.market_value / 100).toFixed(2)}`);
+    }
+    
+    if (oldItem.auction_ends_at !== newItem.auction_ends_at) {
+      if (!oldItem.auction_ends_at && newItem.auction_ends_at) {
+        changes.push('Item is now in auction');
+      } else if (oldItem.auction_ends_at && !newItem.auction_ends_at) {
+        changes.push('Auction has ended');
+      }
+    }
+
+    if (oldItem.auction_highest_bid !== newItem.auction_highest_bid) {
+      changes.push(`Highest bid changed to ${newItem.auction_highest_bid} coins`);
+    }
+
+    if (oldItem.auction_number_of_bids !== newItem.auction_number_of_bids) {
+      changes.push(`Number of bids changed to ${newItem.auction_number_of_bids}`);
+    }
+
+    return changes;
+  }
+
+  private async notifyDiscord(item: CSGOItem, skinConfig: SkinWatch, changes: string[] = []) {
     try {
       const itemUrl = `https://csgoempire.com/item/${item.id}`;
-      const response = await fetch(ENV.DISCORD_WEBHOOK, {
-        method: 'POST',
+      const dollarPrice = (item.market_value * this.PRICE_MULTIPLIER / 100).toFixed(2);
+      const suggestedPrice = item.suggested_price != null 
+        ? (item.suggested_price * this.PRICE_MULTIPLIER / 100).toFixed(2)
+        : null;
+      const coinValue = (item.market_value / 100).toFixed(2);
+      
+      // Format delivery stats
+      const deliveryStats = item.depositor_stats;
+      const deliveryInfo = [
+        `Recent Delivery Rate: ${(deliveryStats.delivery_rate_recent * 100).toFixed(0)}%`,
+        `Average Delivery Time: ${deliveryStats.delivery_time_minutes_recent} mins`,
+        `Steam Level: ${deliveryStats.steam_level_min_range}-${deliveryStats.steam_level_max_range}`,
+        deliveryStats.user_has_trade_notifications_enabled ? '🔔 Trade Notifications ON' : '🔕 Trade Notifications OFF'
+      ].join(' • ');
+
+      // Check if auction is still valid
+      const currentEpoch = Math.floor(Date.now() / 1000);
+      const isValidAuction = item.auction_ends_at && item.auction_ends_at > currentEpoch;
+      
+      // Create the appropriate command based on auction status
+      const commandBlock = isValidAuction
+        ? `**Bid Command (Auction ends <t:${item.auction_ends_at}:R>):**\n\`\`\`bash\ncurl -X POST "https://csgoempire.com/api/v2/trading/deposit/${item.id}/bid" \\
+-H "Authorization: Bearer $UKNOWXD" \\
+-H "Content-Type: application/json" \\
+-d "{\\"bid_value\\": ${Math.floor(item.market_value)}}"\n\`\`\``
+        : `**Buy Command:**\n\`\`\`bash\ncurl -X POST "https://csgoempire.com/api/v2/trading/deposit/${item.id}/withdraw" \\
+-H "Authorization: Bearer $UKNOWXD" \\
+-H "Content-Type: application/json" \\
+-d "{\\"coin_value\\": ${Math.floor(item.market_value)}}"\n\`\`\``;
+
+      const webhookUrl = `${ENV.DISCORD_WEBHOOK}${this.webhookMessages.has(item.id) ? `/messages/${this.webhookMessages.get(item.id)}` : '?wait=true'}`;
+      
+      const response = await fetch(webhookUrl, {
+        method: this.webhookMessages.has(item.id) ? 'PATCH' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           embeds: [{
-            title: `New ${skinConfig.name} Found!`,
-            description: `Found item: ${item.market_name}\n[View on CSGOEmpire](${itemUrl})`,
-            fields: [
-              {
-                name: 'Float',
-                value: item.wear?.toString() || 'N/A',
-                inline: true,
-              },
-              {
-                name: 'Price',
-                value: `$${(item.market_value / 100).toFixed(2)}`,
-                inline: true,
-              },
-              item.custom_name && {
-                name: 'Custom Name',
-                value: item.custom_name,
-                inline: true,
-              },
-              item.paint_seed && {
-                name: 'Paint Seed',
-                value: item.paint_seed.toString(),
-                inline: true,
-              },
-              {
-                name: 'Status',
-                value: [
-                  item.price_is_unreliable ? '⚠️ Price Unreliable' : '✅ Price Reliable',
-                  item.invalid && `⚠️ ${item.invalid}`,
-                ].filter(Boolean).join('\n'),
-                inline: false,
-              }
-            ].filter(Boolean),
+            title: `${this.webhookMessages.has(item.id) ? '🔄 Updated' : '🎯 New'} ${skinConfig.search} Found!`,
+            description: [
+              `### ${item.market_name}`,
+              this.webhookMessages.has(item.id) && [
+                '*This message has been updated with new information*',
+                '',
+                '### 📝 Changes Detected',
+                ...changes.map(change => `• ${change}`)
+              ].join('\n'),
+              `[View on CSGOEmpire](${itemUrl})`,
+              '',
+              '### 💰 Pricing',
+              `• Current Price: **$${dollarPrice}** (${coinValue} coins)`,
+              suggestedPrice && `• Suggested Price: **$${suggestedPrice}**`,
+              item.above_recommended_price && `• Price Difference: **${item.above_recommended_price}%** (${this.getPriceDifferenceText(item.above_recommended_price)})`,
+              '',
+              '### 📊 Item Details',
+              `• Float: **${item.wear?.toFixed(4) || 'N/A'}** (${item.wear_name || 'N/A'})`,
+              item.paint_seed && `• Paint Seed: **${item.paint_seed}**`,
+              item.custom_name && `• Custom Name: **${item.custom_name}**`,
+              isValidAuction && `• Auction Ends: <t:${item.auction_ends_at}:R>`,
+              '',
+              '### 🔧 Quick Actions',
+              commandBlock
+            ].filter(Boolean).join('\n'),
             thumbnail: {
               url: `https://steamcommunity-a.akamaihd.net/economy/image/${item.icon_url}`,
+            },
+            image: item.preview_id ? {
+              url: `https://inspect.csgoempire2.com/${item.preview_id}.jpg`
+            } : undefined,
+            footer: {
+              text: item.price_is_unreliable ? '⚠️ Warning: Price may be unreliable' : '✅ Price verified',
             },
             url: itemUrl,
             timestamp: new Date().toISOString(),
@@ -179,6 +238,13 @@ export class WatcherService extends BaseService {
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Store message ID if it's a new message
+      if (!this.webhookMessages.has(item.id)) {
+        const responseData = await response.json();
+        this.webhookMessages.set(item.id, responseData.id);
+        debug.log(`Stored webhook message ID ${responseData.id} for item ${item.id}`);
       }
     } catch (error) {
       console.error(chalk.red('Error sending Discord notification:', error));
