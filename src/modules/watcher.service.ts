@@ -223,9 +223,9 @@ export class WatcherService extends BaseService {
             thumbnail: {
               url: `https://steamcommunity-a.akamaihd.net/economy/image/${item.icon_url}`,
             },
-            image: item.preview_id ? {
+            image: {
               url: `https://inspect.csgoempire2.com/${item.preview_id}.jpg`
-            } : undefined,
+            },
             footer: {
               text: item.price_is_unreliable ? '⚠️ Warning: Price may be unreliable' : '✅ Price verified',
             },
