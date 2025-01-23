@@ -46,15 +46,9 @@ console.log(chalk.green(`
 ╔════════════════════════════════════════════
 ║ CSGOEmpire Watcher Started
 ║ Watching for ${watcherConfig.skins.length} different skins
-║ Checking every ${watcherConfig.interval / 1000} seconds
+║ Using WebSocket for real-time updates
 ║ Press Ctrl+C to stop
 ╚════════════════════════════════════════════
 `));
 
-const run = async () => {
-  console.log(chalk.blue('Watching for configured skins...'));
-  await watcher.searchForSkins();
-  setTimeout(run, watcherConfig.interval);
-};
-
-run();
+watcher.start();

@@ -1,5 +1,6 @@
 import { ENV } from '../config/env';
 import { BaseService } from './base.service';
+import { SocketService } from './socket.service';
 import type { CSGOResponse, CSGOItem } from '../types';
 import type { WatcherConfig, SkinWatch } from '../types/config';
 import chalk from 'chalk';
@@ -11,6 +12,7 @@ export class WatcherService extends BaseService {
   private webhookMessages: Map<number, string> = new Map(); // item.id -> message_id
   private itemStates: Map<number, CSGOItem> = new Map(); // item.id -> previous state
   private config: WatcherConfig;
+  private socketService: SocketService;
   private readonly PRICE_MULTIPLIER = 0.6142808;
 
   constructor(config: WatcherConfig) {
@@ -24,19 +26,24 @@ export class WatcherService extends BaseService {
         return processed;
       })
     };
+    this.socketService = new SocketService(this.handleNewItem.bind(this));
   }
 
-  async searchForSkins() {
+  async start() {
     try {
+      // Initial fetch for all configured skins
       for (const skin of this.config.skins) {
-        await this.searchSkin(skin);
+        await this.initialFetch(skin);
       }
+
+      // Connect to WebSocket for real-time updates
+      await this.socketService.connect();
     } catch (error) {
-      console.error(chalk.red('Error searching for items:', error));
+      console.error(chalk.red('Error starting watcher:', error));
     }
   }
 
-  private async searchSkin(skinConfig: SkinWatch) {
+  private async initialFetch(skinConfig: SkinWatch) {
     const adjustedMinPrice = skinConfig.minPrice 
       ? Math.round(skinConfig.minPrice / this.PRICE_MULTIPLIER * 100).toString()
       : undefined;
@@ -45,7 +52,7 @@ export class WatcherService extends BaseService {
       : undefined;
 
     const params = {
-      per_page: '10',
+      per_page: '100',
       page: '1',
       sort: 'desc',
       order: 'market_value',
@@ -54,50 +61,104 @@ export class WatcherService extends BaseService {
       ...(adjustedMaxPrice && { price_max: adjustedMaxPrice }),
     };
 
-    debug.object('Search parameters', params);
-
     try {
       const data = await this.get<CSGOResponse>('/trading/items', params);
-      debug.log(`Found ${data.data.length} items before filtering`);
+      debug.log(`Initial fetch for ${skinConfig.search}: Found ${data.data.length} items`);
       
-      const items = data.data.filter(item => {
-        const matchesFloat = this.matchesFloatRange(item, skinConfig);
-        debug.log(`Item ${item.market_name} (Float: ${item.wear}) matches float range: ${matchesFloat}`);
-        return matchesFloat;
-      });
-
-      debug.log(`${items.length} items match float range criteria`);
-
-      for (const item of items) {
-        const isSpotted = this.spottedItems.has(item.id);
-        if (isSpotted) {
-          const previousState = this.itemStates.get(item.id);
-          const changes = previousState ? this.getItemChanges(previousState, item) : [];
-          
-          if (changes.length > 0) {
-            debug.log(`Changes detected for item ${item.id}:`, changes);
-            this.itemStates.set(item.id, {...item}); // Update stored state
-            await this.notifyDiscord(item, skinConfig, changes);
-          }
-          continue;
+      for (const item of data.data) {
+        if (this.matchesConfig(item, skinConfig)) {
+          this.spottedItems.add(item.id);
+          this.itemStates.set(item.id, {...item});
+          await this.notifyDiscord(item, skinConfig);
         }
-
-        debug.log(`New item found: ${item.market_name}`);
-        this.spottedItems.add(item.id);
-        this.itemStates.set(item.id, {...item}); // Store initial state
-        await this.notifyDiscord(item, skinConfig);
       }
     } catch (error) {
-      console.error(chalk.red('Error searching for skin:', skinConfig.search));
-      debug.log('Full error:', error);
-      return;
+      console.error(chalk.red(`Error in initial fetch for ${skinConfig.search}:`, error));
+    }
+  }
+
+  private matchesConfig(item: CSGOItem, config: SkinWatch): boolean {
+    debug.log(`Checking item "${item.market_name}" against config "${config.search}"`);
+    
+    // Convert both strings to lowercase and remove extra spaces
+    const itemName = item.market_name.toLowerCase().trim();
+    const searchTerm = config.search.toLowerCase().trim();
+    
+    // Split search terms and check if all parts are included
+    const searchParts = searchTerm.split(' ');
+    const allPartsMatch = searchParts.every(part => itemName.includes(part));
+    
+    if (!allPartsMatch) {
+      debug.log(`❌ Name mismatch: "${item.market_name}" doesn't match all parts of "${config.search}"`);
+      return false;
+    }
+    debug.log(`✅ Name matches`);
+    
+    // Rest of the method remains the same
+    const itemPrice = item.market_value * this.PRICE_MULTIPLIER / 100;
+    if (config.maxPrice && itemPrice > config.maxPrice) {
+      debug.log(`❌ Price too high: $${itemPrice.toFixed(2)} > $${config.maxPrice}`);
+      return false;
+    }
+    if (config.minPrice && itemPrice < config.minPrice) {
+      debug.log(`❌ Price too low: $${itemPrice.toFixed(2)} < $${config.minPrice}`);
+      return false;
+    }
+    debug.log(`✅ Price matches: $${itemPrice.toFixed(2)} is within range`);
+    
+    // Check float range if applicable
+    if (!this.matchesFloatRange(item, config)) {
+      debug.log(`❌ Float mismatch: Item float ${item.wear || 'N/A'} doesn't match range ${config.minFloat || '0'}-${config.maxFloat || 'inf'}`);
+      return false;
+    }
+    debug.log(`✅ Float matches or not required`);
+    
+    debug.log(`✅ Item matches all criteria`);
+    return true;
+  }
+
+  private handleNewItem(item: CSGOItem) {
+    debug.log(`Checking item: ${item.market_name} (${item.market_value / 100} coins)`);
+    
+    const matchingConfig = this.config.skins.find(config => {
+      const matches = this.matchesConfig(item, config);
+      if (!matches) {
+        debug.log(`Item ${item.market_name} didn't match config ${config.search}`);
+      }
+      return matches;
+    });
+
+    if (matchingConfig) {
+      const isUpdate = this.spottedItems.has(item.id);
+      const previousState = this.itemStates.get(item.id);
+      
+      if (isUpdate && previousState) {
+        const changes = this.getItemChanges(previousState, item);
+        if (changes.length > 0) {
+          debug.log(`Changes detected for item ${item.id}:`, changes);
+          this.itemStates.set(item.id, {...item});
+          this.notifyDiscord(item, matchingConfig, changes);
+        }
+      } else {
+        debug.log(`New matching item found via WebSocket: ${item.market_name}`);
+        this.spottedItems.add(item.id);
+        this.itemStates.set(item.id, {...item});
+        this.notifyDiscord(item, matchingConfig);
+      }
     }
   }
 
   private matchesFloatRange(item: CSGOItem, config: SkinWatch): boolean {
-    if (!item.wear) return false;
+    // If no float constraints, return true
+    if (!config.minFloat && !config.maxFloat) return true;
+    
+    // If item has no float but config requires it, return false
+    if (!item.wear && (config.minFloat || config.maxFloat)) return false;
+    
+    // Check float constraints if they exist
     if (config.minFloat && item.wear < config.minFloat) return false;
     if (config.maxFloat && item.wear > config.maxFloat) return false;
+    
     return true;
   }
 

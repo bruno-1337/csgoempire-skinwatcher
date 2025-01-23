@@ -5,6 +5,14 @@
       "search": "Stattrak USP Printstream",
       "maxFloat": 0.22,
       "maxPrice": 60.81
+    },
+    { 
+      "search": "cloud9 holo antwerp",
+      "maxPrice": 6.31
+    },
+    { 
+      "search": "mouz holo stockholm",
+      "maxPrice": 5.47
     }
   ]
-} 
+}
